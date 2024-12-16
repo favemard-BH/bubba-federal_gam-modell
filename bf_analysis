@@ -1,0 +1,334 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.show = "hold")
+```
+
+## Step 1: Load Libraries
+
+```{r install packages and load libraris}
+
+install.packages("caret")
+install.packages("plotly")
+install.packages("tidyverse")
+install.packages("zoo")
+install.packages("ggplot")
+library(tidyverse) # Includes ggplot2 and dplyr for data manipulation and visualization
+library(dplyr) # For specific data manipulation tasks
+library(ggplot2) # For creating detailed plots
+library(caret) # For model training and evaluation
+library(plotly) # For interactive 3D visualizations
+library(zoo) # For filling NA values with the last non-NA value
+```
+
+## Step 2: Load Datasets
+
+```{r load-datasets}
+# Load the datasets
+bf_09n <- read.csv("/Users/marcosfavela/Documents/data scientist 2024/Coursera/IBM Data Scientist Professional Certificate/R/Analyze Dataset_Predictive Modeling/Dataset_BubbaPad/bf_09n.csv")
+bf_10n <- read.csv("/Users/marcosfavela/Documents/data scientist 2024/Coursera/IBM Data Scientist Professional Certificate/R/Analyze Dataset_Predictive Modeling/Dataset_BubbaPad/bf_10n.csv")
+bf_11n <- read.csv("/Users/marcosfavela/Documents/data scientist 2024/Coursera/IBM Data Scientist Professional Certificate/R/Analyze Dataset_Predictive Modeling/Dataset_BubbaPad/bf_11n.csv")
+bf_13n <- read.csv("/Users/marcosfavela/Documents/data scientist 2024/Coursera/IBM Data Scientist Professional Certificate/R/Analyze Dataset_Predictive Modeling/Dataset_BubbaPad/bf_13n.csv")
+bf_15n <- read.csv("/Users/marcosfavela/Documents/data scientist 2024/Coursera/IBM Data Scientist Professional Certificate/R/Analyze Dataset_Predictive Modeling/Dataset_BubbaPad/bf_15n.csv")
+bf_17n <- read.csv("/Users/marcosfavela/Documents/data scientist 2024/Coursera/IBM Data Scientist Professional Certificate/R/Analyze Dataset_Predictive Modeling/Dataset_BubbaPad/bf_17n.csv")
+```
+
+## Step 3: Clean and Rename Columns
+
+```{r rename-columns}
+# Clean and rename columns
+rename_columns <- function(df) {
+  df <- df %>% rename(
+    `Measured Depth` = `Hole.Depth..feet.`,
+    `Bit Depth` = `Bit.Depth..feet.`,
+    ROP = `Rate.Of.Penetration..ft_per_hr.`,
+    WOB = `Weight.on.Bit..klbs.`,
+    RPM = `Rotary.RPM..RPM.`,
+    SPP = `Standpipe.Pressure..psi.`,
+    HKLD = `Hook.Load..klbs.`,
+    DiffP = `Differential.Pressure..psi.`,
+    PumpRate = `Total.Pump.Output..gal_per_min.`,
+    Torque = `Convertible.Torque..kft_lb.`,
+    NBInc = `ATK.Near.Bit.Inc..deg.`,
+    `NB Az` = `ATK.Near.Bit.Azi..deg.`,
+    XYVibes = `ATK.Lateral.Vibration..unitless.`,
+    TangVibes = `ATK.Tangential.Vibraton..unitless.`,
+    SSLIP = `ATK.Stick.Slip..unitless.`,
+    Gamma = `Gamma..api.`
+  )
+  return(df)
+}
+
+bf_09n <- rename_columns(bf_09n)
+bf_10n <- rename_columns(bf_10n)
+bf_11n <- rename_columns(bf_11n)
+bf_13n <- rename_columns(bf_13n)
+bf_15n <- rename_columns(bf_15n)
+bf_17n <- rename_columns(bf_17n)
+```
+
+## Step 4: Replace Null Values
+
+```{r replace-null-values}
+# Replace -999.25 values with NA
+replace_null_values <- function(df) {
+  df <- df %>% mutate(across(everything(), ~ ifelse(. == -999.25, NA, .)))
+  return(df)
+}
+
+bf_09n <- replace_null_values(bf_09n)
+bf_10n <- replace_null_values(bf_10n)
+bf_11n <- replace_null_values(bf_11n)
+bf_13n <- replace_null_values(bf_13n)
+bf_15n <- replace_null_values(bf_15n)
+bf_17n <- replace_null_values(bf_17n)
+```
+
+## Step 5: Extend NBInc, NB Az, and Gamma Values
+
+```{r extend-nbinc-nbaz}
+# Extend last NBInc, NB Az, and Gamma values over nulls
+extend_nbinc_nbaz_gamma <- function(df) {
+  df <- df %>% mutate(
+    NBInc = zoo::na.locf(NBInc, na.rm = FALSE),
+    `NB Az` = zoo::na.locf(`NB Az`, na.rm = FALSE),
+    Gamma = zoo::na.locf(Gamma, na.rm = FALSE)
+  )
+  return(df)
+}
+
+bf_09n <- extend_nbinc_nbaz_gamma(bf_09n)
+bf_10n <- extend_nbinc_nbaz_gamma(bf_10n)
+bf_11n <- extend_nbinc_nbaz_gamma(bf_11n)
+bf_13n <- extend_nbinc_nbaz_gamma(bf_13n)
+bf_15n <- extend_nbinc_nbaz_gamma(bf_15n)
+bf_17n <- extend_nbinc_nbaz_gamma(bf_17n)
+```
+
+## Step 6: Filter Data
+
+```{r filter-data}
+# Filter out values outside the specified ranges
+filter_data <- function(df) {
+  df <- df %>% mutate(
+    ROP = ifelse(ROP < 0 | ROP > 1500, NA, ROP),
+    WOB = ifelse(WOB < 0 | WOB > 50, NA, WOB),
+    DiffP = ifelse(DiffP < 0 | DiffP > 2000, NA, DiffP),
+    Gamma = ifelse(Gamma < 0 | Gamma > 300, NA, Gamma)
+  )
+  return(df)
+}
+
+filter_measured_depth <- function(df) {
+  df <- df %>% filter(`Measured Depth` >= 2200)
+  return(df)
+}
+
+filter_nbinc <- function(df) {
+  df <- df %>% filter(NBInc <= 94)
+  return(df)
+}
+
+bf_09n <- filter_data(bf_09n) %>% filter_measured_depth() %>% filter_nbinc()
+bf_10n <- filter_data(bf_10n) %>% filter_measured_depth() %>% filter_nbinc()
+bf_11n <- filter_data(bf_11n) %>% filter_measured_depth() %>% filter_nbinc()
+bf_13n <- filter_data(bf_13n) %>% filter_measured_depth() %>% filter_nbinc()
+bf_15n <- filter_data(bf_15n) %>% filter_measured_depth() %>% filter_nbinc()
+bf_17n <- filter_data(bf_17n) %>% filter_measured_depth() %>% filter_nbinc()
+```
+
+## Step 7: Summarize Data
+
+```{r summarize-data}
+# Summarize combined data where NBInc > 85
+summarize_data <- function(datasets) {
+  combined_data <- bind_rows(datasets) %>% filter(NBInc > 85)
+  summary(combined_data)
+}
+
+# Combine and summarize all datasets
+all_datasets <- list(bf_09n, bf_10n, bf_11n, bf_13n, bf_15n, bf_17n)
+data_summary <- summarize_data(all_datasets)
+print(data_summary)
+```
+
+## Step 8: Visualize Measured Depth vs ROP with NBInc for All Wells
+
+```{r visualize-depth-rop-nbinc-all}
+# Scatter plot with fixed axes for NBInc and Gamma scale for all wells
+plot_depth_rop_nbinc <- function(df, well_name) {
+  ggplot(df, aes(x = `Measured Depth`, y = ROP, color = NBInc)) +
+    geom_point(size = 0.5) +
+    scale_color_gradient(low = "blue", high = "red", limits = c(0, 95)) +
+    scale_x_continuous(limits = c(0, 20000)) +
+    scale_y_continuous(limits = c(0, 1500),
+                       sec.axis = sec_axis(~ ., name = "Gamma", breaks = seq(0, 400, by = 50), labels = seq(0, 400, by = 50))) +
+    geom_line(data = df %>% filter(NBInc > 85), aes(x = `Measured Depth`, y = Gamma), color = "green", linetype = "dashed") +
+    labs(title = paste("Measured Depth vs ROP (Colored by NBInc) -", well_name),
+         x = "Measured Depth",
+         y = "ROP",
+         color = "NBInc") +
+    theme_minimal()
+}
+
+# List of datasets and well names
+well_datasets <- list(bf_09n, bf_10n, bf_11n, bf_13n, bf_15n, bf_17n)
+well_names <- c("Well 09N", "Well 10N", "Well 11N", "Well 13N", "Well 15N", "Well 17N")
+
+# Generate and display plots for all wells
+for (i in seq_along(well_datasets)) {
+  print(plot_depth_rop_nbinc(well_datasets[[i]], well_names[i]))
+}
+```
+
+## Step 9: Analyze Non-Linear Relationships Between Parameters and ROP
+
+```{r analyze-relationships}
+# Filter data for NBInc > 85
+filtered_data <- function(df) {
+  df %>% filter(NBInc > 85)
+}
+
+# Visualize WOB, DiffP, RPM, and PumpRate against ROP for all datasets
+plot_relationship <- function(df, x_var, y_var = "ROP", title) {
+  ggplot(df, aes(x = .data[[x_var]], y = .data[[y_var]])) +
+    geom_point(alpha = 0.6) +
+    geom_smooth(method = "loess", formula = y ~ x, color = "blue") +
+    labs(title = title, x = x_var, y = y_var) +
+    theme_minimal()
+}
+
+# List of datasets
+well_datasets <- list(bf_09n, bf_10n, bf_11n, bf_13n, bf_15n, bf_17n)
+well_names <- c("Well 09N", "Well 10N", "Well 11N", "Well 13N", "Well 15N", "Well 17N")
+
+# Loop through each dataset and parameter
+parameters <- c("WOB", "DiffP", "RPM", "PumpRate")
+for (i in seq_along(well_datasets)) {
+  df_nbinc85 <- filtered_data(well_datasets[[i]])
+  for (param in parameters) {
+    print(plot_relationship(
+      df_nbinc85,
+      x_var = param,
+      y_var = "ROP",
+      title = paste("Relationship between", param, "and ROP -", well_names[i])
+    ))
+  }
+}
+```
+## Step 10: Identify Optimal Parameters for Best ROP (NBInc > 85)
+
+### Step 10.1: Grid Search for Optimal Parameters
+
+```{r grid-search}
+
+# Combine all datasets
+combined_data <- bind_rows(bf_09n, bf_10n, bf_11n, bf_13n, bf_15n, bf_17n) %>%
+  filter(NBInc > 85)
+
+# Ensure required package for GAM
+install.packages("mgcv")
+library(mgcv)
+
+# Train the GAM model
+gam_model <- gam(ROP ~ s(WOB) + s(DiffP) + s(RPM) + s(PumpRate), data = combined_data)
+
+# Define parameter ranges
+parameter_grid <- expand.grid(
+  WOB = seq(0, 50, by = 1), 
+  DiffP = seq(0, 2000, by = 50),
+  RPM = seq(0, 200, by = 5),
+  PumpRate = seq(0, 800, by = 10)
+)
+
+# Ensure correct structure and types
+parameter_grid <- parameter_grid %>% mutate_if(is.integer, as.numeric)
+
+# Iterate through each dataset filtered for NBInc > 85
+well_datasets <- list(bf_09n = bf_09n, bf_10n = bf_10n, bf_11n = bf_11n, bf_13n = bf_13n, bf_15n = bf_15n, bf_17n = bf_17n)
+filtered_datasets <- lapply(well_datasets, function(df) df %>% filter(NBInc > 85))
+
+# Store best combinations for each dataset
+best_combinations <- lapply(filtered_datasets, function(df) {
+  parameter_grid$predicted_ROP <- predict(gam_model, newdata = parameter_grid)
+  best_combination <- parameter_grid %>% filter(predicted_ROP == max(predicted_ROP, na.rm = TRUE))
+  return(best_combination)
+})
+
+# Print best combinations for all datasets
+print(best_combinations)
+```
+
+### Step 10.2: Optimization Using `optim`
+
+```{r optimization}
+# Define objective function (negative ROP for maximization)
+objective_function <- function(params, df) {
+  data <- data.frame(
+    WOB = params[1],
+    DiffP = params[2],
+    RPM = params[3],
+    PumpRate = params[4]
+  )
+  -predict(gam_model, newdata = data) # Negative for maximization
+}
+
+# Run optimization for each filtered dataset
+optimization_results <- lapply(filtered_datasets, function(df) {
+  optim(
+    par = c(25, 1000, 100, 400), # Initial guesses for WOB, DiffP, RPM, PumpRate
+    fn = objective_function,
+    df = df,
+    lower = c(0, 0, 0, 0), # Lower bounds
+    upper = c(50, 2000, 200, 800), # Upper bounds
+    method = "L-BFGS-B"
+  )
+})
+
+# Extract and print best parameters for each dataset
+best_parameters <- lapply(optimization_results, function(result) result$par)
+print(best_parameters)
+```
+
+### Step 10.3: Sensitivity Analysis for All Parameters
+
+```{r sensitivity-analysis}
+# Updated sensitivity analysis function
+sensitivity_analysis <- function(param, param_name, fixed_params, df) {
+  # Ensure fixed_params is a named list
+  fixed_params <- as.list(fixed_params)
+  
+  # Create a data frame with varying parameter values
+  varied_data <- data.frame(
+    WOB = if (param_name == "WOB") param else rep(fixed_params$WOB, length(param)),
+    DiffP = if (param_name == "DiffP") pmin(param, 1500) else rep(fixed_params$DiffP, length(param)),
+    RPM = if (param_name == "RPM") param else rep(fixed_params$RPM, length(param)),
+    PumpRate = if (param_name == "PumpRate") param else rep(fixed_params$PumpRate, length(param))
+  )
+  
+  # Predict ROP and apply constraints
+  varied_data$predicted_ROP <- predict(gam_model, newdata = varied_data)
+  varied_data$predicted_ROP <- ifelse(varied_data$RPM > 0 & varied_data$predicted_ROP < 0, 0, varied_data$predicted_ROP)
+  varied_data$predicted_ROP <- ifelse(varied_data$PumpRate > 0 & varied_data$predicted_ROP < 0, 0, varied_data$predicted_ROP)
+  return(varied_data)
+}
+
+# Perform sensitivity analysis for each dataset
+sensitivity_results_all <- lapply(seq_along(filtered_datasets), function(i) {
+  df <- filtered_datasets[[i]]
+  optimal_params <- best_parameters[[i]]
+  param_ranges <- list(
+    WOB = seq(0, 50, by = 1),
+    DiffP = seq(0, 2000, by = 50),
+    RPM = seq(0, 200, by = 5),
+    PumpRate = seq(0, 800, by = 10)
+  )
+  
+  sensitivity_results <- lapply(names(param_ranges), function(param_name) {
+    sensitivity_analysis(param_ranges[[param_name]], param_name, optimal_params, df)
+  })
+  return(sensitivity_results)
+})
+
+# Print or visualize sensitivity results
+print(sensitivity_results_all)
+```
